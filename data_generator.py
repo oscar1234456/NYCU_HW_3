@@ -30,10 +30,10 @@ def poly_data_generator(n, a, w):
 
 
 if __name__ == "__main__":
-    # samples = list()
-    # for i in range(20000):
-    #      samples.append(random_data_generator(5,1))
-    # plt.hist(samples, 50)
-    # plt.show()
-    x, y = poly_data_generator(2, 10, np.array([2, 5]))
-    print(f"x:{x}, y:{y}")
+    samples = list()
+    for i in range(20000):
+         samples.append(random_data_generator(20,10))
+    plt.hist(samples, 50)
+    plt.show()
+    # x, y = poly_data_generator(2, 10, np.array([2, 5]))
+    # print(f"x:{x}, y:{y}")
