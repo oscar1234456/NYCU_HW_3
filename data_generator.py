@@ -6,6 +6,9 @@ from numpy import log as ln
 # m: mean
 # s: variance
 def random_data_generator(m, s):
+    # ref:https://medium.com/mti-technology/how-to-generate-gaussian-samples-3951f2203ab0
+    # ref:https://blog.csdn.net/fengdu78/article/details/118715198
+    # Box-Muller
     U = np.random.rand()
     V = np.random.rand()
     X = np.sqrt((-2 * ln(U))) * np.cos(2 * np.pi * V)

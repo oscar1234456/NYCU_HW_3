@@ -2,6 +2,8 @@ import data_generator
 
 
 def seq_estimator(m, s):
+    # ref:https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
+    # Welford's online algorithm (the version of handling numerical instability)
     eps = 1e-4
     max_iter = 100000
     n = 0
@@ -31,5 +33,5 @@ def seq_estimator(m, s):
 
 
 if __name__ == "__main__":
-    # seq_estimator(3.0,5.0)
-    seq_estimator(241.0, 8.0)
+    seq_estimator(3.0,5.0)
+    # seq_estimator(241.0, 8.0)
