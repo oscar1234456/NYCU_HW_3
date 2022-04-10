@@ -3,11 +3,8 @@ from matplotlib import pyplot as plt
 from numpy.linalg import inv
 import data_generator
 
-point_x = list()
-point_y = list()
-mean_list=[]
-variance_list=[]
-def baysian_linear_regression(b=1, n=4, a=1, w=np.array([1, 2, 3, 4])):
+
+def baysian_linear_regression(b=1, n=4, a=1, w=np.array([1, 2, 3, 4]), max_iter=10000):
     # poly_data_generator(n, a, w)
     # posterior: Gaussian(mu,lambda.inv) <multivariate>
     # prior: Gaussian(m, S.inv) <multivariate>
@@ -21,36 +18,33 @@ def baysian_linear_regression(b=1, n=4, a=1, w=np.array([1, 2, 3, 4])):
     # S.inv: the inverse of cov matrix of prior
     # mu: the mean of posterior
     # lambda: the inverse of cov matrix of posterior
-    eps = 1e-3
-    max_iter = 1000
+    mean_record = list()
+    var_record = list()
 
     point_x_pool = list()
     point_y_pool = list()
 
-
     X = None
     Y = None
-    S_inv = (1/b) * np.identity(n)
+    S_inv = (1 / b) * np.identity(n)
     m = np.zeros((n, 1))
-    a = 1/a
+    a = 1 / a
 
     for _ in range(max_iter):
-        new_point_x, new_point_y = data_generator.poly_data_generator(n, a, w)
+        print(f"__________epoch{_}__________")
+        new_point_x, new_point_y = data_generator.poly_data_generator(n, a, w)  # generate new points
         print(f"Add data point:({new_point_x}, {new_point_y})")
+        # record the generated points
         point_x_pool.append(new_point_x)
         point_y_pool.append(new_point_y)
-        # if X is None:
-        #     X = np.array([[np.power(new_point_x, i) for i in range(n)]])
-        # else:
-        #     X = np.append(X, np.array([[np.power(new_point_x, i) for i in range(n)]]), axis=0)
-        X = np.array([[np.power(new_point_x, i) for i in range(n)]])
-        Y = np.array([[new_point_y]])
-        # Y = np.array([[y] for y in point_y_pool])
 
-        S = inv(S_inv)
-        lambda_post = a * X.T @ X + S
+        X = np.array([[np.power(new_point_x, i) for i in range(n)]])  # design matrix [n * k] = [1 * k]
+        Y = np.array([[new_point_y]])  # ground truth [n * 1]
+
+        S = inv(S_inv)  # S: cov matrix of prior [k * k]
+        lambda_post = a * X.T @ X + S  # the inverse of cov matrix of posterior [k * k]
         lambda_post_inverse = inv(lambda_post)
-        mu = lambda_post_inverse @ (a * X.T @ Y + S@m)
+        mu = lambda_post_inverse @ (a * X.T @ Y + S @ m)  # the mean of posterior [k * 1]
 
         print("Posterior mean:")
         print(mu)
@@ -59,45 +53,79 @@ def baysian_linear_regression(b=1, n=4, a=1, w=np.array([1, 2, 3, 4])):
         print("Posterior variance:")
         print(lambda_post_inverse)
 
+        # predictive distribution
+        predictive_mean = (mu.T @ X.T).item()  # the mean of posterior.T, design matrix.T  [1 * k] [k * n=1] scalar
+        predictive_variance = (
+                (1 / a) + X @ lambda_post_inverse @ X.T).item()  # cov matrix of posterior [n=1 * n=1] scalar
+        print(f'Predictive distribution ~ N({predictive_mean:.5f},{predictive_variance:.5f})')
+        print("________________________")
+
+        # check converged
+        if np.allclose(m, mu, rtol=1e-3) and np.allclose(S_inv, lambda_post_inverse, rtol=1e-3):
+            print("__converged! Early stop!")
+            mean_record.append(mu)
+            var_record.append(lambda_post_inverse)
+            break
+
+        # record the mean and var of posterior
+        if _ == 9 or _ == 49 or _ == max_iter - 1:
+            mean_record.append(mu)
+            var_record.append(lambda_post_inverse)
+
+        # update mean and var from posterior to prior (online)
         m = mu
         S_inv = lambda_post_inverse
 
-        # predictive distribution
-        predictive_mean = (m.T @ X.T).item()
-        predictive_variance = ((1/a) + X @ S_inv @ X.T).item()
-        print('Predictive distribution ~ N({:.5f},{:.5f})'.format(predictive_mean, predictive_variance))
-        print('--------------------------------------------------')
-        point_x.append(new_point_x)
-        point_y.append(new_point_y)
-        if _ == 9 or _ == 49 or _ == max_iter-1:
-            mean_list.append(m)
-            variance_list.append(S_inv)
+    print(f"total runs: {_}")
+    return _, point_x_pool, point_y_pool, mean_record, var_record
 
 
-def plot(num_points, x, mean, variance, title, n=3, a=3):
-    mean_predict = np.zeros(500)
-    variance_predict = np.zeros(500)
-    a = 1/a
-    for i in range(len(x)):
-        X = np.array([[np.power(x[i], k) for k in range(n)]])
-        mean_predict[i] = (mean.T @ X.T).item()
-        variance_predict[i] = ((1/a) + X @ variance @ X.T).item()
+def visualization(a, mu, lambda_post_inverse, x_point_show, y_point_show, plt_title):
+    x_num = 800
+    x = np.linspace(-2, 2, x_num)
 
-    plt.plot(point_x[:num_points], point_y[:num_points], 'bo')
-    plt.plot(x, mean_predict, 'k-')
-    plt.plot(x, mean_predict + variance_predict, 'r-')
-    plt.plot(x, mean_predict - variance_predict, 'r-')
+    pred_mean = np.zeros(x_num)
+    pred_var = np.zeros(x_num)
+    a = 1 / a  # a: the var of likelihood<univariate>
+
+    for i in range(x_num):
+        X = np.array([[np.power(x[i], _) for _ in range(n)]])
+        # predicted distribution (given data point x)
+        pred_mean[i] = (mu.T @ X.T).item()
+        pred_var[i] = ((1 / a) + X @ lambda_post_inverse @ X.T).item()
+
+    plt.plot(x_point_show, y_point_show, 'bo')
+    plt.plot(x, pred_mean, "k-")
+    # plot +- 1 variance line
+    plt.plot(x, pred_mean + pred_var, "r-")
+    plt.plot(x, pred_mean - pred_var, "r-")
     plt.xlim(-2, 2)
-    plt.ylim(-20, 20)
-    plt.title(title)
+    plt.ylim(-15, 25)
+    plt.title(plt_title)
     plt.show()
 
 
-
 if __name__ == "__main__":
-    baysian_linear_regression(a=3, n=3, b=1, w=np.array([1,2,3]))
-    x = np.linspace(-2, 2, 500)
-    plot(10, x, mean_list[0], variance_list[0], 'After 10 incomes')
-    plot(50, x, mean_list[1], variance_list[1], 'After 50 incomes')
-    plot(1000, x, mean_list[2], variance_list[2], 'Predict result (10000 incomes)')
-    plot(0, x, np.array([1, 2, 3]), np.zeros((3, 3)), 'Ground truth')
+    b = 1
+    n = 4
+    a = 1
+    w = np.array([1, 2, 3, 4])
+    max_iter = 10000
+    _, point_x_pool, point_y_pool, mean_record, var_record = baysian_linear_regression(a=a, n=n, b=b, w=w,
+                                                                                       max_iter=max_iter)
+
+    mean_record_10 = mean_record[0]
+    mean_record_50 = mean_record[1]
+    mean_record_full = mean_record[2]
+    mean_gt = w
+
+    var_record_10 = var_record[0]
+    var_record_50 = var_record[1]
+    var_record_full = var_record[2]
+    var_gt = np.zeros((n, n))  # control by a
+
+    visualization(a, mean_record_10, var_record_10, point_x_pool[:10], point_y_pool[:10], "After 10 incomes")
+    visualization(a, mean_record_50, var_record_50, point_x_pool[:50], point_y_pool[:50], "After 50 incomes")
+    visualization(a, mean_record_full, var_record_full, point_x_pool, point_y_pool,
+                  f"Predict result (After {_} incomes)")
+    visualization(a, mean_gt, var_gt, point_x_pool[:0], point_y_pool[:0], "Ground truth")
